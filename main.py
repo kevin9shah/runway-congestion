@@ -13,6 +13,27 @@ from src.swarm.communication import SwarmCommunicator
 
 # --- Main Airport Node Class ---
 
+def sanitize_for_json(obj: Any) -> Any:
+    """
+    Recursively traverses a dictionary or list and converts any
+    numpy.nan values to Python's None and numpy numeric types
+    to native Python types.
+    """
+    if isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(v) for v in obj]
+    elif isinstance(obj, float) and np.isnan(obj):
+        return None
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
+
+
 class AirportNode:
     """
     Represents a single airport in the distributed network.
@@ -178,8 +199,8 @@ class AirportNode:
             "prediction": self.current_prediction,
             "short_term_trend": self.short_term_trend,
             "raw_data_summary": sanitized_raw_data,
-            "extracted_features": self.current_features,
-            "swarm_communication": self.neighbor_summary,
+            "extracted_features": sanitize_for_json(self.current_features),
+            "swarm_communication": sanitize_for_json(self.neighbor_summary),
         }
 
 

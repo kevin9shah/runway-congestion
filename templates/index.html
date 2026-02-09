@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Airport Congestion Swarm Dashboard</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -12,27 +13,21 @@
     <header>
         <div class="container">
             <h1>Swarm-Based Congestion Prediction</h1>
-            <p>Real-time status of the distributed airport network</p>
         </div>
     </header>
 
-    <main>
-        <div class="container">
-            <h2>Live Airport Status</h2>
-            <div id="status-grid" class="grid-container">
-                <!-- Airport cards will be dynamically inserted here -->
+    <main class="main-container">
+        <div id="map"></div>
+        <div id="sidebar">
+            <div id="sidebar-content">
+                <h2>Airport Details</h2>
+                <div id="details-body">
+                    <p>Click on an airport to see details.</p>
+                </div>
             </div>
+            <button id="close-sidebar">&times;</button>
         </div>
     </main>
-
-    <!-- Modal for details -->
-    <div id="details-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2 id="modal-title"></h2>
-            <div id="modal-body"></div>
-        </div>
-    </div>
 
     <footer>
         <div class="container">
@@ -40,6 +35,7 @@
         </div>
     </footer>
 
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

@@ -1,54 +1,51 @@
 
 document.addEventListener('DOMContentLoaded', function() {
 
-    const statusGrid = document.getElementById('status-grid');
-    const modal = document.getElementById('details-modal');
-    const modalTitle = document.getElementById('modal-title');
-    const modalBody = document.getElementById('modal-body');
-    const closeButton = document.querySelector('.close-button');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarContent = document.getElementById('details-body');
+    const closeSidebarButton = document.getElementById('close-sidebar');
 
-    function getStatusColor(congestion) {
+    const airportCoordinates = {
+        "KJFK": { lat: 40.6413, lon: -73.7781 },
+        "KLAX": { lat: 33.9416, lon: -118.4085 },
+        "EGLL": { lat: 51.4700, lon: -0.4543 },
+        "EDDF": { lat: 50.0379, lon: 8.5622 },
+        "LFPG": { lat: 49.0097, lon: 2.5479 },
+        "RJTT": { lat: 35.5494, lon: 139.7798 },
+    };
+
+    let map;
+    const markers = {};
+
+    function initializeMap() {
+        map = L.map('map').setView([25, 0], 2); // Centered to show the world
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+    }
+
+    function getStatusClass(congestion) {
         if (congestion > 0.7) return 'status-high';
         if (congestion > 0.4) return 'status-medium';
         return 'status-low';
     }
 
-    function getTrendIndicator(trend) {
-        if (trend > 0.01) return '<span class="trend trend-up">▲ Increasing</span>';
-        if (trend < -0.01) return '<span class="trend trend-down">▼ Decreasing</span>';
-        return '<span class="trend trend-stable">▬ Stable</span>';
-    }
-    
-    function formatTimestamp(unix_timestamp) {
-        const date = new Date(unix_timestamp * 1000);
-        return date.toLocaleTimeString();
-    }
-
-    function createAirportCard(icao, node) {
-        const statusColor = getStatusColor(node.congestion_index);
-        const card = document.createElement('div');
-        card.className = `airport-card ${statusColor}`;
-        card.setAttribute('data-icao', icao); // Set ICAO code for click handling
-        
-        card.innerHTML = `
-            <div class="card-header">
-                <h3>${icao}</h3>
-                <span class="timestamp">Updated: ${formatTimestamp(node.timestamp)}</span>
-            </div>
-            <div class="card-body">
-                <p><strong>Congestion Index:</strong> ${node.congestion_index.toFixed(3)}</p>
-                <p><strong>Short-Term Trend:</strong> ${getTrendIndicator(node.short_term_trend)}</p>
-            </div>
-        `;
-        return card;
+    function createMarkerIcon(statusClass) {
+        return L.divIcon({
+            className: `leaflet-marker-icon ${statusClass}`,
+            iconSize: [20, 20],
+        });
     }
     
     function renderObjectAsTable(obj) {
         if (!obj || Object.keys(obj).length === 0) return '<p>No data available.</p>';
         let table = '<table>';
         for (const [key, value] of Object.entries(obj)) {
-            const formattedValue = typeof value === 'number' ? value.toFixed(3) : value;
-            table += `<tr><td><strong>${key}</strong></td><td>${formattedValue}</td></tr>`;
+            const formattedValue = typeof value === 'number' ? value.toFixed(3) : (value === null ? 'N/A' : value);
+            table += `<tr><td><strong>${key.replace(/_/g, ' ')}</strong></td><td>${formattedValue}</td></tr>`;
         }
         table += '</table>';
         return table;
@@ -63,88 +60,103 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const data = await response.json();
 
-            // Clear existing grid
-            statusGrid.innerHTML = '';
+            for (const icao in data) {
+                if (airportCoordinates[icao]) {
+                    const node = data[icao];
+                    const statusClass = getStatusClass(node.congestion_index);
+                    const coords = airportCoordinates[icao];
 
-            const sortedIcaos = Object.keys(data).sort();
-
-            if (sortedIcaos.length === 0) {
-                statusGrid.innerHTML = '<p>Waiting for simulation data...</p>';
-                return;
+                    if (markers[icao]) {
+                        // Update existing marker
+                        markers[icao].setIcon(createMarkerIcon(statusClass));
+                        markers[icao].getTooltip().setContent(`<b>${icao}</b><br>Congestion: ${node.congestion_index.toFixed(3)}`);
+                    } else {
+                        // Create new marker
+                        const icon = createMarkerIcon(statusClass);
+                        const marker = L.marker([coords.lat, coords.lon], { icon: icon }).addTo(map);
+                        marker.on('click', () => openSidebar(icao));
+                        marker.bindTooltip(`<b>${icao}</b><br>Congestion: ${node.congestion_index.toFixed(3)}`).openTooltip();
+                        markers[icao] = marker;
+                    }
+                }
             }
-
-            for (const icao of sortedIcaos) {
-                const node = data[icao];
-                const card = createAirportCard(icao, node);
-                statusGrid.appendChild(card);
-            }
-
         } catch (error) {
             console.error("Error updating dashboard:", error);
         }
     }
 
-    async function openModal(icao) {
+    async function openSidebar(icao) {
+        sidebar.classList.remove('collapsed');
+        sidebarContent.innerHTML = '<p>Loading details...</p>';
+
         try {
             const response = await fetch(`/api/details/${icao}`);
             if (!response.ok) {
-                modalBody.innerHTML = '<p>Could not load details.</p>';
-            } else {
-                const details = await response.json();
-                
-                modalTitle.textContent = `Details for ${details.icao}`;
-                
-                let bodyContent = `
-                    <h3>Prediction Output</h3>
-                    ${renderObjectAsTable({
-                        "Final Congestion Prediction": details.prediction,
-                        "Short-term Trend": details.short_term_trend,
-                    })}
-
-                    <h3>Swarm Communication</h3>
-                    ${renderObjectAsTable(details.swarm_communication)}
-
-                    <h3>Extracted Features (Input to Model)</h3>
-                    ${renderObjectAsTable(details.extracted_features)}
-                    
-                    <h3>Raw Data Summary</h3>
-                    <pre>${JSON.stringify(details.raw_data_summary, null, 2)}</pre>
-                `;
-                
-                modalBody.innerHTML = bodyContent;
+                const errorText = `Could not load details. Server responded with status: ${response.status}`;
+                sidebarContent.innerHTML = `<p>${errorText}</p>`;
+                console.error(errorText);
+                return;
+            }
+            const details = await response.json();
+            if (!details) {
+                sidebarContent.innerHTML = `<p>Received empty details from server.</p>`;
+                return;
             }
             
-            modal.style.display = 'block';
+            let content = `
+                <h2>${details.icao}</h2>
+                <div class="section-explanation">
+                    <p>This node uses a machine learning model to predict congestion. It enhances its prediction by communicating with neighboring airports in a "swarm," sharing data to make a more accurate, collective forecast.</p>
+                </div>
+
+                <h3>Prediction Output</h3>
+                <div class="section-explanation">
+                    <p>The final congestion score and the immediate trend, adjusted after swarm communication.</p>
+                </div>
+                ${renderObjectAsTable({
+                    "Final Congestion": details.prediction,
+                    "Short-term Trend": details.short_term_trend,
+                })}
+
+                <h3>Swarm Communication</h3>
+                <div class="section-explanation">
+                    <p>Data received from neighboring airports. The model uses this to adjust its local prediction.</p>
+                </div>
+                ${renderObjectAsTable(details.swarm_communication)}
+
+                <h3>Model Features</h3>
+                <div class="section-explanation">
+                    <p>The key inputs fed into the local machine learning model to make an initial prediction.</p>
+                </div>
+                ${renderObjectAsTable(details.extracted_features)}
+                
+                <h3>Raw Data Summary</h3>
+                <div class="section-explanation">
+                    <p>A summary of the raw, unprocessed data used to generate the features above.</p>
+                </div>
+                <pre>${JSON.stringify(details.raw_data_summary, null, 2)}</pre>
+            `;
+            sidebarContent.innerHTML = content;
 
         } catch (error) {
             console.error("Error fetching details:", error);
-            modalBody.innerHTML = '<p>Error loading details.</p>';
-            modal.style.display = 'block';
+            sidebarContent.innerHTML = '<p>Error loading details.</p>';
         }
     }
 
+    function closeSidebar() {
+        sidebar.classList.add('collapsed');
+    }
+
     // --- Event Listeners ---
-
-    // Click on an airport card to open the modal
-    statusGrid.addEventListener('click', function(event) {
-        const card = event.target.closest('.airport-card');
-        if (card) {
-            const icao = card.dataset.icao;
-            openModal(icao);
-        }
-    });
-
-    // Close the modal
-    closeButton.addEventListener('click', () => modal.style.display = 'none');
-    window.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    });
+    closeSidebarButton.addEventListener('click', closeSidebar);
 
 
-    // --- Initial Load & Periodic Refresh ---
-    updateDashboard(); // Initial call
+    // --- Initialization ---
+    initializeMap();
+    updateDashboard();
     setInterval(updateDashboard, 5000); // Refresh every 5 seconds
-
+    
+    // Initially the sidebar is closed
+    closeSidebar();
 });
