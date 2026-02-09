@@ -1,0 +1,45 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Airport Congestion Swarm Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <header>
+        <div class="container">
+            <h1>Swarm-Based Congestion Prediction</h1>
+            <p>Real-time status of the distributed airport network</p>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <h2>Live Airport Status</h2>
+            <div id="status-grid" class="grid-container">
+                <!-- Airport cards will be dynamically inserted here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal for details -->
+    <div id="details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 id="modal-title"></h2>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>Simulation running. Data updates automatically.</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

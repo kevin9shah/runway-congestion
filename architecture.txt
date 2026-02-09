@@ -1,0 +1,119 @@
+
+----------------------------------------------------------------------------------------------------
+SYSTEM ARCHITECTURE: Swarm-Based Distributed Runway Congestion Prediction System
+----------------------------------------------------------------------------------------------------
+
++--------------------------------------------------------------------------------------------------+
+|                                        USER / OPERATOR                                           |
++--------------------------------------------------------------------------------------------------+
+        |
+        | (Requests & Visualizations)
+        |
++--------------------------------------------------------------------------------------------------+
+|                                    MAIN APPLICATION (`main.py`)                                  |
+|                                                                                                  |
+|   - Initializes and manages Airport Nodes                                                        |
+|   - Orchestrates the simulation ticks                                                            |
+|   - Collects and logs system-wide data                                                           |
+|   - Provides an interface for control and visualization                                          |
++--------------------------------------------------------------------------------------------------+
+        |
+        | (Manages)
+        |
++--------------------------------------------------------------------------------------------------+
+|                                      AIRPORT NODE (Object)                                       |
+|                                                                                                  |
+|   - Represents a single airport (e.g., JFK, LAX)                                                 |
+|   - Contains all sub-components for local prediction and swarm communication                     |
++--------------------------------------------------------------------------------------------------+
+        |
+        | (Contains)
+        |
+        |------------------------------------------------------------------------------+
+        |                                                                              |
++-------------------------------+                                        +-------------------------------+
+|    OPENSKY API FETCHER        |                                        |      SWARM COMMUNICATOR       |
+| (`src/api/opensky_api.py`)    |                                        | (`src/swarm/communication.py`)|
+|                               |                                        |                               |
+| - Fetches flight data from    |                                        | - "Sends" congestion data to  |
+|   OpenSky Network API.        |                                        |   neighboring Airport Nodes.  |
+| - Handles authentication,     |--(Raw Flight Data)-->                  | - "Receives" congestion data  |
+|   rate limiting, and errors.  |                                        |   from neighbors.             |
++-------------------------------+                                        +-------------------------------+
+        |                                                                              |
+        | (Raw Data)                                                                   | (Neighbor Data)
+        |                                                                              |
++-------------------------------+                                        +-------------------------------+
+|    FEATURE EXTRACTOR          |                                        |      LOCAL PREDICTION MODEL   |
+| (`src/features/extractor.py`) |                                        | (`src/ml/prediction_model.py`)|
+|                               |                                        |                               |
+| - Processes raw data to       |                                        | - Trains a local ML model     |
+|   engineer features:          |--(Engineered Features)-->              |   (e.g., Random Forest).      |
+|   - Arrival/Departure Rates   |                                        | - Predicts local runway       |
+|   - On-Ground Count           |                                        |   congestion index.           |
+|   - Congestion Index, etc.    |                                        | - Adjusts prediction based on |
+|                               |                                        |   neighbor data (Swarm        |
+|                               |                                        |   Intelligence).              |
++-------------------------------+                                        +-------------------------------+
+        |
+        | (Prediction)
+        |
++--------------------------------------------------------------------------------------------------+
+|                                        LOGGING & OUTPUT                                          |
+|                                                                                                  |
+|   - Simulation logs                                                                              |
+|   - Predicted congestion indices                                                                 |
+|   - Example outputs                                                                              |
++--------------------------------------------------------------------------------------------------+
+
+----------------------------------------------------------------------------------------------------
+KEY CONCEPTS
+----------------------------------------------------------------------------------------------------
+
+- **DISTRIBUTED NODES:** Each airport is a self-contained node. It does not need a central server
+  to function, only to be initialized by the main application.
+
+- **DATA LOCALIZATION:** Raw flight data (e.g., individual flight vectors, times) is never shared
+  between nodes. It is processed locally by the Feature Extractor.
+
+- **SWARM INTELLIGENCE:** Nodes share only high-level, summarized information (congestion index,
+  trend). A node's prediction is influenced by its neighbors' states, simulating how congestion
+  propagates in the real world.
+
+- **PRIVACY-PRESERVING:** Because raw flight data is not shared, the system respects the privacy
+  of airlines and passengers.
+
+- **SCALABILITY & FAULT TOLERANCE:** New airports can be added without redesigning the system.
+  If a node fails, it does not bring down the entire network; other nodes continue to operate
+  with the available information.
+
+----------------------------------------------------------------------------------------------------
+WORKFLOW
+----------------------------------------------------------------------------------------------------
+
+1. **Initialization:** The main application creates a set of Airport Node objects, each representing
+   an airport and aware of its neighbors.
+
+2. **Data Fetching:** Each node's OpenSky API Fetcher independently retrieves flight data for its
+   specific airport ICAO code.
+
+3. **Feature Engineering:** The node's Feature Extractor processes the raw data to calculate the
+   congestion features. This is where runway congestion is INFERRED without explicit runway data.
+   (e.g., by analyzing the density and spacing of aircraft in the airport's vicinity).
+
+4. **Local Prediction:** The node's Local Prediction Model uses the engineered features to generate
+   a preliminary congestion prediction.
+
+5. **Swarm Communication:** The node's Swarm Communicator shares its prediction with its neighbors.
+   Simultaneously, it receives predictions from them.
+
+6. **Adjusted Prediction:** The Local Prediction Model incorporates the neighbors' data to refine
+   its own prediction. For example, if a neighboring hub is highly congested, the model might
+   increase its own predicted congestion, anticipating knock-on effects.
+
+7. **Logging:** The main application logs the state of each node (features, predictions) for
+   each simulation tick.
+
+8. **Loop:** The process repeats for the next simulation tick.
+
+----------------------------------------------------------------------------------------------------
